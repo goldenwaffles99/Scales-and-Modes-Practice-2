@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scale & Mode Practice Roller</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#222;background:#f5f5f5}
+*{box-sizing:border-box}body{max-width:920px;margin:0 auto;padding:25px 16px 48px;text-align:center}
+h1{margin:0 0 7px;font-size:clamp(25px,5vw,36px)}.sub,.note{color:#666}.sub{margin-top:0}
+.panel{background:#fff;border-radius:16px;padding:20px;margin:22px 0;box-shadow:0 2px 8px #0000000b}
+.controls{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:17px}
+label{font-weight:700}select,input{font:inherit;border:1px solid #bbb;border-radius:9px;padding:9px;background:#fff;color:#222}
+.practice{display:flex;justify-content:center;gap:20px;flex-wrap:wrap;margin:20px 0}
+.card{background:white;border:3px solid #222;border-radius:16px;padding:20px;min-width:min(230px,100%);flex:1 1 210px;max-width:330px;box-shadow:0 5px 0 #bbb}
+.label{font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px}.value{font-size:clamp(26px,4vw,36px);font-weight:800;margin-top:9px;overflow-wrap:anywhere}
+.result{font-size:clamp(20px,4vw,28px);font-weight:800;margin:18px 0 8px}.formula{font-size:20px;min-height:30px;margin:0 0 16px}.formula span{font-weight:750}.count{color:#555;margin:14px}
+button{font:inherit;font-size:17px;font-weight:700;padding:12px 24px;border:0;border-radius:11px;cursor:pointer;margin:4px;background:#222;color:white}button.secondary{background:#e4e4e4;color:#222}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #567efa;outline-offset:3px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}.tag{padding:9px 5px;border-radius:8px;background:#eee;font-size:13px}.tag.used{text-decoration:line-through;color:#999;background:#f7f7f7}.history{text-align:left}details{text-align:left;margin-top:16px}summary{cursor:pointer;font-weight:700;padding:8px}.history h2,.metronome h2{font-size:21px;margin:0 0 15px}
+.metrowidgets{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:18px}.widget{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:center}.tempo-input{width:85px;text-align:center}.tempo-range{width:min(235px,55vw);accent-color:#222}.pulse{width:27px;height:27px;border-radius:50%;border:3px solid #222;background:#eee;transition:background .06s}.pulse.on{background:#27a268}.metrostatus{min-height:22px;color:#666;font-size:13px;margin-top:10px}
+.note{font-size:13px;line-height:1.5}@media(max-width:650px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{padding:16px 12px}}
+</style>
+</head>
+<body>
+<h1>🎸 Scale & Mode Practice Roller</h1>
+<p class="sub">One key + one mode. Practice each of the 84 combinations once.</p>
+<section class="panel" aria-label="Scale practice">
+ <div class="controls">
+  <label for="naming">Scale naming</label>
+  <select id="naming">
+   <option value="mode">Modes</option>
+   <option value="parent">Parent Major</option>
+     </select>
+ </div>
+ <div class="practice">
+  <div class="card"><div class="label" id="leftLabel">Key</div><div class="value" id="leftValue">—</div></div>
+  <div class="card"><div class="label" id="rightLabel">Mode</div><div class="value" id="rightValue">—</div></div>
+ </div>
+ <div class="result" id="result" aria-live="polite">Ready to practice</div>
+ <div class="formula" id="formula" aria-live="polite"></div>
+ <button id="roll">ROLL</button><button id="reset" class="secondary">RESET</button>
+ <div class="count" id="count"></div>
+</section>
+<section class="panel metronome" aria-label="Metronome">
+ <h2>Metronome</h2>
+ <div class="metrowidgets">
+  <div class="widget"><label for="bpm">Tempo</label><input class="tempo-input" id="bpm" type="number" min="40" max="240" step="1" value="100"><span>BPM</span></div>
+  <input class="tempo-range" id="tempoRange" aria-label="Tempo slider" type="range" min="40" max="240" step="1" value="100">
+  <div class="widget"><label for="subdivision">Subdivision</label><select id="subdivision">
+   <option value="1">Quarter notes (♩)</option><option value="2">Eighth notes (♪)</option><option value="3">Eighth-note triplets (3)</option><option value="4">Sixteenth notes (♬)</option><option value="8">32nd notes</option>
+  </select></div>
+  <div class="widget"><span class="pulse" id="pulse" aria-hidden="true"></span><button id="metroToggle" aria-pressed="false">START</button></div>
+ </div>
+ <div class="metrostatus" id="metroStatus" aria-live="polite">4 beats per measure · Accent on beat 1 · Tempo is measured in quarter notes.</div>
+</section>
+<section class="panel history"><h2>84 combinations</h2><div class="grid" id="grid"></div></section>
+<p class="note">Keys: C, G, D, A, E, B, F#, F, Bb, Eb, Ab, Db. Mode formulas use the major scale as the reference. Locrian has a natural 4, not ♭4.</p>
+<script>
+'use strict';
+const keys=['C','G','D','A','E','B','F#','F','Bb','Eb','Ab','Db'];
+const modes=['Ionian','Dorian','Phrygian','Lydian','Mixolydian','Aeolian','Locrian'];
+const modeInfo={
+ Ionian:{degree:1,offset:0,formula:'1 2 3 4 5 6 7'},
+ Dorian:{degree:2,offset:2,formula:'1 2 ♭3 4 5 6 ♭7'},
+ Phrygian:{degree:3,offset:4,formula:'1 ♭2 ♭3 4 5 ♭6 ♭7'},
+ Lydian:{degree:4,offset:5,formula:'1 2 3 ♯4 5 6 7'},
+ Mixolydian:{degree:5,offset:7,formula:'1 2 3 4 5 6 ♭7'},
+ Aeolian:{degree:6,offset:9,formula:'1 2 ♭3 4 5 ♭6 ♭7'},
+ Locrian:{degree:7,offset:11,formula:'1 ♭2 ♭3 4 ♭5 ♭6 ♭7'}
+};
+const pitchNames=['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+const pitchClass={C:0,'C#':1,Db:1,D:2,Eb:3,E:4,F:5,'F#':6,G:7,Ab:8,A:9,Bb:10,B:11};
+const all=modes.flatMap(mode=>keys.map(key=>({key,mode})));
+let remaining=[],used=[],currentItem=null;
+const el=id=>document.getElementById(id);
+function parentMajor(key,mode){return pitchNames[(pitchClass[key]-modeInfo[mode].offset+12)%12]}
+function ordinal(n){return n+(n===1?'st':n===2?'nd':n===3?'rd':'th')}
+function updateDisplay(){
+ const style=el('naming').value;
+ el('leftLabel').textContent=style==='parent'?'Parent major scale':'Key';
+ el('rightLabel').textContent=style==='parent'?'Starting degree':'Mode';
+ if(!currentItem){el('leftValue').textContent='—';el('rightValue').textContent='—';el('result').textContent='Ready to practice';el('formula').textContent='';return}
+ const {key,mode}=currentItem,degree=modeInfo[mode].degree,parent=parentMajor(key,mode);
+ el('leftValue').textContent=style==='parent'?parent+' major':key;
+ el('rightValue').textContent=style==='parent'?ordinal(degree):mode;
+ const parentText=`${parent} major from the ${ordinal(degree)} degree`;
+ el('result').textContent='Play '+(style==='parent'?parentText:`${key} ${mode}`);
+ el('formula').textContent=`${mode} formula: ${modeInfo[mode].formula}`;
+}
+function render(){el('count').textContent=`${remaining.length} / 84 combinations remaining`;const usedSet=new Set(used.map(x=>`${x.key}|${x.mode}`));el('grid').replaceChildren(...all.map(item=>{let tag=document.createElement('div');tag.className='tag'+(usedSet.has(`${item.key}|${item.mode}`)?' used':'');tag.textContent=`${item.key} — ${item.mode}`;return tag}))}
+function resetAll(){remaining=all.map(x=>({...x}));used=[];currentItem=null;updateDisplay();render()}
+function roll(){if(!remaining.length){el('result').textContent='All 84 combinations completed!';return}const i=Math.floor(Math.random()*remaining.length);currentItem=remaining.splice(i,1)[0];used.push(currentItem);updateDisplay();render()}
+el('naming').addEventListener('change',updateDisplay);el('roll').addEventListener('click',roll);el('reset').addEventListener('click',resetAll);resetAll();
+
+// Web Audio look-ahead scheduling keeps the click timing independent of UI rendering.
+let audioCtx=null,metronomeRunning=false,timerID=null,nextClickTime=0,tickCount=0;
+const lookAheadMs=25,scheduleAheadSeconds=0.12;
+function getBpm(){return Math.max(40,Math.min(240,Number(el('bpm').value)||100))}
+function setBpm(value){const n=Math.max(40,Math.min(240,Math.round(Number(value)||100)));el('bpm').value=n;el('tempoRange').value=n}
+el('bpm').addEventListener('change',()=>setBpm(el('bpm').value));el('tempoRange').addEventListener('input',()=>setBpm(el('tempoRange').value));
+function playTick(time,accent,quarterBeat){
+ const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+ osc.type='sine';osc.frequency.setValueAtTime(accent?1175:quarterBeat?870:620,time);
+ gain.gain.setValueAtTime(0.0001,time);gain.gain.exponentialRampToValueAtTime(accent?0.34:quarterBeat?0.22:0.10,time+0.002);gain.gain.exponentialRampToValueAtTime(0.0001,time+0.043);
+ osc.connect(gain);gain.connect(audioCtx.destination);osc.start(time);osc.stop(time+0.05);
+}
+function scheduler(){if(!metronomeRunning||!audioCtx)return;
+ while(nextClickTime<audioCtx.currentTime+scheduleAheadSeconds){
+  const subdiv=Number(el('subdivision').value),index=tickCount%(4*subdiv);
+  playTick(nextClickTime,index===0,index%subdiv===0);
+  nextClickTime+=(60/getBpm())/subdiv;tickCount++;
+ }
+}
+async function toggleMetro(){
+ if(metronomeRunning){stopMetro();return}
+ try{
+  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContextClass)throw new Error('Web Audio is unavailable in this browser.');
+  if(!audioCtx)audioCtx=new AudioContextClass();await audioCtx.resume();
+  metronomeRunning=true;tickCount=0;nextClickTime=audioCtx.currentTime+0.04;
+  el('metroToggle').textContent='STOP';el('metroToggle').setAttribute('aria-pressed','true');el('metroStatus').textContent='Playing · Accent on beat 1 of each 4/4 measure';
+  scheduler();timerID=setInterval(scheduler,lookAheadMs);
+ }catch(err){el('metroStatus').textContent='Cannot start audio: '+err.message}
+}
+function stopMetro(){metronomeRunning=false;if(timerID!==null){clearInterval(timerID);timerID=null}el('metroToggle').textContent='START';el('metroToggle').setAttribute('aria-pressed','false');el('pulse').classList.remove('on');el('metroStatus').textContent='Stopped · Tempo is measured in quarter notes.';
+ // Suspending also silences clicks already scheduled slightly ahead.
+ if(audioCtx&&audioCtx.state==='running')audioCtx.suspend().catch(()=>{});
+}
+el('metroToggle').addEventListener('click',toggleMetro);
+el('subdivision').addEventListener('change',()=>{if(metronomeRunning){tickCount=0;nextClickTime=Math.max(nextClickTime,audioCtx.currentTime+0.01)}});
+// Visual cue is intentionally decorative; actual audio is scheduled by AudioContext.
+setInterval(()=>{if(!metronomeRunning||!audioCtx)return;const phase=(audioCtx.currentTime*getBpm()/60)%1;el('pulse').classList.toggle('on',phase<0.12)},50);
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&metronomeRunning)stopMetro()});
+</script>
+</body>
+</html>
