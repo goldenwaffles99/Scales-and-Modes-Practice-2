@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scale & Mode Practice Roller</title>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;max-width:900px;margin:0 auto;padding:28px 18px;text-align:center;background:#f5f5f5;color:#222}
+h1{margin-bottom:5px}.sub{color:#666}
+.practice{display:flex;justify-content:center;gap:24px;margin:28px 0}
+.card{background:white;border:3px solid #222;border-radius:18px;padding:22px 30px;min-width:220px;box-shadow:0 5px 0 #bbb}
+.label{font-size:14px;color:#666;text-transform:uppercase;letter-spacing:1px}.value{font-size:34px;font-weight:800;margin-top:8px}
+.result{font-size:28px;font-weight:800;margin:20px}.count{color:#555}
+button{font-size:20px;font-weight:700;padding:13px 28px;border:0;border-radius:12px;cursor:pointer;margin:6px;background:#222;color:white}
+button.secondary{background:#ddd;color:#222}
+.options{margin:20px 0;font-size:17px;font-weight:700}
+.options select{font-size:16px;padding:9px 12px;border-radius:8px;border:1px solid #bbb;margin-left:8px;background:white}
+.history{margin-top:30px;background:white;padding:20px;border-radius:14px;text-align:left}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.tag{padding:9px;border-radius:8px;background:#eee;text-align:center;font-size:14px}.tag.used{text-decoration:line-through;color:#999;background:#f7f7f7}
+.note{margin-top:20px;color:#666;font-size:14px}
+@media(max-width:650px){.practice{flex-direction:column;align-items:center}.grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<h1>🎸 Scale & Mode Practice Roller</h1>
+<p class="sub">One key + one mode. Every combination is practiced once.</p>
+<div class="options">
+ <label for="naming">Scale naming:</label>
+ <select id="naming" onchange="updateDisplay()">
+  <option value="mode">D Dorian</option>
+  <option value="parent">C major — 2nd scale degree</option>
+  <option value="both">D Dorian — C major, 2nd degree</option>
+ </select>
+</div>
+<div class="practice">
+ <div class="card"><div class="label">Key</div><div class="value" id="key">—</div></div>
+ <div class="card"><div class="label">Mode</div><div class="value" id="mode">—</div></div>
+</div>
+<div class="result" id="result">Ready to practice</div>
+<div class="count" id="count"></div>
+<button onclick="roll()">ROLL</button>
+<button class="secondary" onclick="resetAll()">RESET</button>
+<div class="history"><strong>84 combinations</strong><div class="grid" id="grid"></div></div>
+<p class="note">Keys: C, G, D, A, E, B, F#, F, Bb, Eb, Ab, Db</p>
+<script>
+const keys=['C','G','D','A','E','B','F#','F','Bb','Eb','Ab','Db'];
+const modes=['Ionian','Dorian','Phrygian','Lydian','Mixolydian','Aeolian','Locrian'];
+
+// Semitone distance from the parent major scale's tonic.
+// Example: D Dorian is the 2nd degree of C major, so D is 2 semitones above C.
+const modeInfo={
+ Ionian:{degree:1,offset:0},
+ Dorian:{degree:2,offset:2},
+ Phrygian:{degree:3,offset:4},
+ Lydian:{degree:4,offset:5},
+ Mixolydian:{degree:5,offset:7},
+ Aeolian:{degree:6,offset:9},
+ Locrian:{degree:7,offset:11}
+};
+
+const pitchNames=['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+const pitchClass={C:0,'C#':1,Db:1,D:2,Eb:3,E:4,F:5,'F#':6,G:7,Ab:8,A:9,Bb:10,B:11};
+
+let remaining=[],used=[],currentItem=null;
+const all=[]; for(const mode of modes)for(const key of keys)all.push({key,mode});
+
+function parentMajor(key,mode){
+ const pc=(pitchClass[key]-modeInfo[mode].offset+12)%12;
+ return pitchNames[pc];
+}
+
+function namingText(item){
+ const style=document.getElementById('naming').value;
+ const parent=parentMajor(item.key,item.mode);
+ const degree=modeInfo[item.mode].degree;
+
+ if(style==='parent') return `${parent} major — ${degree}${degree===1?'st':degree===2?'nd':degree===3?'rd':'th'} scale degree`;
+ if(style==='both') return `${item.key} ${item.mode} — ${parent} major, ${degree}${degree===1?'st':degree===2?'nd':degree===3?'rd':'th'} degree`;
+ return `${item.key} ${item.mode}`;
+}
+
+function updateDisplay(){
+ if(!currentItem){
+  document.getElementById('result').textContent='Ready to practice';
+  return;
+ }
+ document.getElementById('key').textContent=currentItem.key;
+ document.getElementById('mode').textContent=currentItem.mode;
+ document.getElementById('result').textContent=`Play ${namingText(currentItem)}`;
+}
+
+function resetAll(){
+ remaining=all.map(x=>({...x}));used=[];currentItem=null;
+ document.getElementById('key').textContent='—';
+ document.getElementById('mode').textContent='—';
+ document.getElementById('result').textContent='Ready to practice';
+ render();
+}
+
+function roll(){
+ if(!remaining.length){document.getElementById('result').textContent='All 84 combinations completed!';return;}
+ const i=Math.floor(Math.random()*remaining.length), item=remaining.splice(i,1)[0];
+ used.push(item);currentItem=item;
+ document.getElementById('key').textContent=item.key;
+ document.getElementById('mode').textContent=item.mode;
+ document.getElementById('result').textContent=`Play ${namingText(item)}`;
+ render();
+}
+function render(){
+ document.getElementById('count').textContent=`${remaining.length} / 84 combinations remaining`;
+ document.getElementById('grid').innerHTML=all.map(x=>{
+  const u=used.some(y=>y.key===x.key&&y.mode===x.mode);
+  return `<div class="tag ${u?'used':''}">${x.key} — ${x.mode}</div>`;
+ }).join('');
+}
+resetAll();
+</script>
+</body>
+</html>
